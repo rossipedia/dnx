@@ -58,6 +58,16 @@ namespace Microsoft.Framework.Runtime
 
             Initialize();
 
+            // If the main project cannot be resolved, it means the app doesn't support current target framework
+            // (i.e. project.json doesn't contain a framework that is compatible to target framework of current runtime)
+            var mainProject = _applicationHostContext.DependencyWalker.Libraries
+                .Single(l => string.Equals(Project.Name, l.Identity.Name));
+            if (!mainProject.Resolved)
+            {
+                throw new InvalidOperationException(
+                    $"'{Project.Name}' doesn't support current runtime target framework '{_targetFramework}'");
+            }
+
             // If there's any unresolved dependencies then complain
             if (_applicationHostContext.DependencyWalker.Libraries.Any(l => !l.Resolved))
             {

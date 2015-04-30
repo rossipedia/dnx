@@ -117,5 +117,36 @@ namespace Microsoft.Framework.ApplicationHost
                 Assert.Contains("Unable to load application or execute command 'invalid'.", stdErr);
             }
         }
+
+        [Theory]
+        [MemberData("RuntimeComponents")]
+        public void AppHostShowsErrorWhenCurrentTargetFrameworkWasNotFoundInProjectJson(string flavor, string os, string architecture)
+        {
+            var runtimeTargetFramework = flavor == "coreclr" ? "DNXCore,Version=v5.0" : "DNX,Version=v4.5.1";
+            var runtimeHomeDir = TestUtils.GetRuntimeHomeDir(flavor, os, architecture);
+            var projectJsonContents = @"{
+  'frameworks': {
+    'FRAMEWORK_NAME': { }
+  }
+}".Replace("FRAMEWORK_NAME", flavor == "coreclr" ? "dnx451" : "dnxcore50");
+
+            using (runtimeHomeDir)
+            using (var projectPath = new DisposableDir())
+            {
+                var projectName = new DirectoryInfo(projectPath).Name;
+                var projectJsonPath = Path.Combine(projectPath, Project.ProjectFileName);
+                File.WriteAllText(projectJsonPath, projectJsonContents);
+
+                string stdOut, stdErr;
+                var exitCode = BootstrapperTestUtils.ExecBootstrapper(
+                    runtimeHomeDir,
+                    arguments: $"{projectPath} run",
+                    stdOut: out stdOut,
+                    stdErr: out stdErr);
+
+                Assert.NotEqual(0, exitCode);
+                Assert.Contains($"'{projectName}' doesn't support current runtime target framework '{runtimeTargetFramework}'", stdErr);
+            }
+        }
     }
 }
