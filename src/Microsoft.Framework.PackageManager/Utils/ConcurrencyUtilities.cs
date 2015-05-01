@@ -39,5 +39,26 @@ namespace Microsoft.Framework.PackageManager
                 fileLock.Release();
             }
         }
+
+        internal async static Task ExecuteWithFileLocked(string filePath, Func<bool, Task> action)
+        {
+            var createdNew = false;
+            var fileLock = new Semaphore(initialCount: 0, maximumCount: 1, name: FilePathToLockName(filePath),
+                createdNew: out createdNew);
+            try
+            {
+                // If this lock is already acquired by another process, wait until we can acquire it
+                if (!createdNew)
+                {
+                    fileLock.WaitOne();
+                }
+
+                await action(createdNew);
+            }
+            finally
+            {
+                fileLock.Release();
+            }
+        }
     }
 }
