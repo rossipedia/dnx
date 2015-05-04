@@ -23,7 +23,7 @@ namespace Microsoft.Framework.Runtime.Servicing
         private readonly HashSet<BreadcrumbInfo> _breadcrumbsToWrite = new HashSet<BreadcrumbInfo>();
         private readonly object _addLock = new object();
 
-        private bool _noMoreAdd = false;
+        private bool _writeWasCalled;
 
         public static Breadcrumbs Instance { get; private set; } = new Breadcrumbs();
 
@@ -86,7 +86,7 @@ namespace Microsoft.Framework.Runtime.Servicing
 
             lock (_addLock)
             {
-                if (_noMoreAdd)
+                if (_writeWasCalled)
                 {
                     if (_breadcrumbsToWrite.Contains(breadcrumb))
                     {
@@ -112,7 +112,7 @@ namespace Microsoft.Framework.Runtime.Servicing
             // The lock ensures that no add is happening while or after we set the flag
             lock (_addLock)
             {
-                _noMoreAdd = true;
+                _writeWasCalled = true;
             }
 
             if (background)
