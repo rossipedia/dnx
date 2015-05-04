@@ -20,7 +20,7 @@ namespace Microsoft.Framework.Runtime.Servicing
 
         private readonly bool _isEnabled;
         private readonly string _breadcrumbsFolder;
-        private readonly HashSet<BreadcrumbInfo> _breadcrumbsToWrite = new HashSet<BreadcrumbInfo>();
+        private readonly HashSet<string> _breadcrumbsToWrite = new HashSet<string>();
         private readonly object _addLock = new object();
 
         private bool _writeWasCalled;
@@ -78,27 +78,26 @@ namespace Microsoft.Framework.Runtime.Servicing
                 return;
             }
 
-            var breadcrumb = new BreadcrumbInfo()
-            {
-                PackageId = packageId,
-                PackageVersion = packageVersion.ToString()
-            };
-
+            var simpleBreadcrumbName = packageId;
+          
             lock (_addLock)
             {
+                if (_breadcrumbsToWrite.Contains(simpleBreadcrumbName))
+                {
+                    // We already have that breadcrumb
+                    return;
+                }
+
                 if (_writeWasCalled)
                 {
-                    if (_breadcrumbsToWrite.Contains(breadcrumb))
-                    {
-                        // This breadcrumb was already here, no need to do anything
-                        return;
-                    }
-
-                    // If we get here, this is a new breadcrumb
+                    // If we get here, this is a new breadcrumb but it is too late to write it
                     throw new InvalidOperationException("New breadcrumbs cannot be added after writing has started.");
                 }
 
-                _breadcrumbsToWrite.Add(breadcrumb);
+                var fullBreadcrumbName = packageId + "." + packageVersion;
+
+                _breadcrumbsToWrite.Add(simpleBreadcrumbName);
+                _breadcrumbsToWrite.Add(fullBreadcrumbName);
             }
         }
 
@@ -132,20 +131,8 @@ namespace Microsoft.Framework.Runtime.Servicing
         {
             foreach (var breadcrumb in _breadcrumbsToWrite)
             {
-                CreateBreadcrumb(breadcrumb.PackageId, breadcrumb.PackageVersion);
+                CreateBreadcrumbFile(breadcrumb);
             }
-        }
-
-        /// <summary>
-        /// Writes a breadcrumb on the disk 
-        /// </summary>
-        /// <param name="packageId">The ID ofthe package</param>
-        /// <param name="packageVersion">The version of the the package</param>
-        private void CreateBreadcrumb(string packageId, string packageVersion)
-        {
-            // Create both files for now until we get clear instructions about the format of the name
-            CreateBreadcrumbFile(packageId);
-            CreateBreadcrumbFile(packageId + "." + packageVersion);
         }
 
         private static string ResolveBreadcrumbsFolder()
@@ -175,7 +162,6 @@ namespace Microsoft.Framework.Runtime.Servicing
                 {
                     if (!File.Exists(fullFilePath))
                     {
-
                         File.Create(fullFilePath).Dispose();
 
                         Logger.TraceInformation(
@@ -204,29 +190,6 @@ namespace Microsoft.Framework.Runtime.Servicing
                 _logType,
                 fileName,
                 exception);
-        }
-
-        private class BreadcrumbInfo
-        {
-            public string PackageId { get; set; }
-            public string PackageVersion { get; set; }
-
-            public override int GetHashCode()
-            {
-                return PackageId.GetHashCode() ^ PackageVersion.GetHashCode();
-            }
-
-            public override bool Equals(object obj)
-            {
-                BreadcrumbInfo other = obj as BreadcrumbInfo;
-                if (other != null)
-                {
-                    return PackageId.Equals(other.PackageId, StringComparison.Ordinal) &&
-                        PackageVersion.Equals(other.PackageVersion, StringComparison.Ordinal);
-                }
-
-                return base.Equals(obj);
-            }
         }
     }
 }
