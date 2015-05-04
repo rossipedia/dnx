@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Framework.Runtime.Internal;
 using NuGet;
 
 namespace Microsoft.Framework.Runtime.Servicing
@@ -19,6 +21,9 @@ namespace Microsoft.Framework.Runtime.Servicing
         private readonly bool _isEnabled;
         private readonly string _breadcrumbsFolder;
         private readonly List<BreadcrumbInfo> _breadcrumbsToWrite = new List<BreadcrumbInfo>();
+        private readonly object _addLock = new object();
+
+        private bool _noMoreAdd = false;
 
         public static Breadcrumbs Instance { get; private set; } = new Breadcrumbs();
 
@@ -73,11 +78,19 @@ namespace Microsoft.Framework.Runtime.Servicing
                 return;
             }
 
-            _breadcrumbsToWrite.Add(new BreadcrumbInfo()
+            lock (_addLock)
             {
-                PackageId = packageId,
-                PackageVersion = packageVersion
-            });
+                if (_noMoreAdd)
+                {
+                    throw new InvalidOperationException("Breadcrumbs cannot be added after writing has started.");
+                }
+
+                _breadcrumbsToWrite.Add(new BreadcrumbInfo()
+                {
+                    PackageId = packageId,
+                    PackageVersion = packageVersion
+                });
+            }
         }
 
         public void WriteAllBreadcrumbs(bool background = false)
@@ -85,6 +98,12 @@ namespace Microsoft.Framework.Runtime.Servicing
             if (!_isEnabled)
             {
                 return;
+            }
+
+            // The lock ensures that no add is happening while or after we set the flag
+            lock (_addLock)
+            {
+                _noMoreAdd = true;
             }
 
             if (background)
@@ -142,25 +161,33 @@ namespace Microsoft.Framework.Runtime.Servicing
         {
             string fullFilePath = Path.Combine(_breadcrumbsFolder, fileName);
 
-            try
+            // Execute with file locked because multiple processes can run at the same time
+            ConcurrencyUtilities.ExecuteWithFileLocked(fullFilePath, _ =>
             {
-                if (!File.Exists(fullFilePath))
+                try
                 {
-                    File.Create(fullFilePath).Dispose();
-                    Logger.TraceInformation(
-                        "[{0}] Wrote servicing breadcrumb for {1}",
-                        _logType,
-                        fileName);
+                    if (!File.Exists(fullFilePath))
+                    {
+
+                        File.Create(fullFilePath).Dispose();
+
+                        Logger.TraceInformation(
+                            "[{0}] Wrote servicing breadcrumb for {1}",
+                            _logType,
+                            fileName);
+                    }
                 }
-            }
-            catch (UnauthorizedAccessException exception)
-            {
-                LogBreadcrumbsCreationFailure(fileName, exception);
-            }
-            catch (DirectoryNotFoundException exception)
-            {
-                LogBreadcrumbsCreationFailure(fileName, exception);
-            }
+                catch (UnauthorizedAccessException exception)
+                {
+                    LogBreadcrumbsCreationFailure(fileName, exception);
+                }
+                catch (DirectoryNotFoundException exception)
+                {
+                    LogBreadcrumbsCreationFailure(fileName, exception);
+                }
+
+                return Task.FromResult(1);
+            }).GetAwaiter().GetResult();
         }
 
         private static void LogBreadcrumbsCreationFailure(string fileName, Exception exception)
