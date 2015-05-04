@@ -20,7 +20,7 @@ namespace Microsoft.Framework.Runtime.Servicing
 
         private readonly bool _isEnabled;
         private readonly string _breadcrumbsFolder;
-        private readonly List<BreadcrumbInfo> _breadcrumbsToWrite = new List<BreadcrumbInfo>();
+        private readonly HashSet<BreadcrumbInfo> _breadcrumbsToWrite = new HashSet<BreadcrumbInfo>();
         private readonly object _addLock = new object();
 
         private bool _noMoreAdd = false;
@@ -78,18 +78,27 @@ namespace Microsoft.Framework.Runtime.Servicing
                 return;
             }
 
+            var breadcrumb = new BreadcrumbInfo()
+            {
+                PackageId = packageId,
+                PackageVersion = packageVersion.ToString()
+            };
+
             lock (_addLock)
             {
                 if (_noMoreAdd)
                 {
-                    throw new InvalidOperationException("Breadcrumbs cannot be added after writing has started.");
+                    if (_breadcrumbsToWrite.Contains(breadcrumb))
+                    {
+                        // This breadcrumb was already here, no need to do anything
+                        return;
+                    }
+
+                    // If we get here, this is a new breadcrumb
+                    throw new InvalidOperationException("New breadcrumbs cannot be added after writing has started.");
                 }
 
-                _breadcrumbsToWrite.Add(new BreadcrumbInfo()
-                {
-                    PackageId = packageId,
-                    PackageVersion = packageVersion
-                });
+                _breadcrumbsToWrite.Add(breadcrumb);
             }
         }
 
@@ -125,16 +134,14 @@ namespace Microsoft.Framework.Runtime.Servicing
             {
                 CreateBreadcrumb(breadcrumb.PackageId, breadcrumb.PackageVersion);
             }
-
-            _breadcrumbsToWrite.Clear();
         }
 
         /// <summary>
         /// Writes a breadcrumb on the disk 
         /// </summary>
-        /// <param name="packageId">The ID of the package</param>
+        /// <param name="packageId">The ID ofthe package</param>
         /// <param name="packageVersion">The version of the the package</param>
-        private void CreateBreadcrumb(string packageId, SemanticVersion packageVersion)
+        private void CreateBreadcrumb(string packageId, string packageVersion)
         {
             // Create both files for now until we get clear instructions about the format of the name
             CreateBreadcrumbFile(packageId);
@@ -202,7 +209,24 @@ namespace Microsoft.Framework.Runtime.Servicing
         private class BreadcrumbInfo
         {
             public string PackageId { get; set; }
-            public SemanticVersion PackageVersion { get; set; }
+            public string PackageVersion { get; set; }
+
+            public override int GetHashCode()
+            {
+                return PackageId.GetHashCode() ^ PackageVersion.GetHashCode();
+            }
+
+            public override bool Equals(object obj)
+            {
+                BreadcrumbInfo other = obj as BreadcrumbInfo;
+                if (other != null)
+                {
+                    return PackageId.Equals(other.PackageId, StringComparison.Ordinal) &&
+                        PackageVersion.Equals(other.PackageVersion, StringComparison.Ordinal);
+                }
+
+                return base.Equals(obj);
+            }
         }
     }
 }
