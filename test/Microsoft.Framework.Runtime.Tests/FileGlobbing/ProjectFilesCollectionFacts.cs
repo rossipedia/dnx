@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Microsoft.Framework.Runtime.Json;
 using Xunit;
 
@@ -113,8 +114,11 @@ namespace Microsoft.Framework.Runtime.Tests.FileGlobbing
 
         private JsonObject Deserialize(string content)
         {
-            var deserializer = new JsonDeserializer();
-            return deserializer.Deserialize(content) as JsonObject;
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(content)))
+            {
+                var deserializer = new JsonDeserializer();
+                return deserializer.Deserialize(stream) as JsonObject;
+            }
         }
 
         private IEnumerable<string> NormalizePatterns(params string[] patterns)
