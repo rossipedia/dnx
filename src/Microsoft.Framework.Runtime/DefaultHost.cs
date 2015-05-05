@@ -74,14 +74,13 @@ namespace Microsoft.Framework.Runtime
                     var runtimeEnv = ServiceProvider.GetService(typeof(IRuntimeEnvironment)) as IRuntimeEnvironment;
                     var alternativeType = VersionUtility.IsDesktop(_targetFramework) ? "CoreCLR" : "CLR";
                     var shortName = VersionUtility.GetShortFrameworkName(_targetFramework);
-                    exceptionMsg = $@"'{Project.Name}' doesn't support current runtime target framework.
-
-Runtime Target Framework: '{_targetFramework} ({shortName})'
-Runtime Type: {runtimeEnv.RuntimeType}
-Runtime Architecture: {runtimeEnv.RuntimeArchitecture}
-Runtime Version: {runtimeEnv.RuntimeVersion}
-
-Please run 'dnvm use {runtimeEnv.RuntimeVersion} -r {alternativeType}' and try again";
+                    exceptionMsg = string.Join(Environment.NewLine, new[]{
+                        $"'{Project.Name}' doesn't support current runtime target framework." + Environment.NewLine,
+                        $"Runtime Target Framework: '{_targetFramework} ({shortName})'",
+                        $"Runtime Type: {runtimeEnv.RuntimeType}",
+                        $"Runtime Architecture: {runtimeEnv.RuntimeArchitecture}",
+                        $"Runtime Version: {runtimeEnv.RuntimeVersion}" + Environment.NewLine,
+                        $"Please make sure the runtime matches a framework specified in {Project.ProjectFileName}" });
                 }
                 else
                 {

@@ -1,11 +1,15 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Versioning;
 using Bootstrapper.FunctionalTests;
 using Microsoft.Framework.CommonTestUtils;
+using Microsoft.Framework.Runtime.Common.Impl;
 using Microsoft.Framework.Runtime;
+using NuGet;
 using Xunit;
 
 namespace Microsoft.Framework.ApplicationHost
@@ -122,7 +126,11 @@ namespace Microsoft.Framework.ApplicationHost
         [MemberData("RuntimeComponents")]
         public void AppHostShowsErrorWhenCurrentTargetFrameworkWasNotFoundInProjectJson(string flavor, string os, string architecture)
         {
-            var runtimeTargetFramework = flavor == "coreclr" ? "DNXCore,Version=v5.0" : "DNX,Version=v4.5.1";
+            var runtimeTargetFrameworkString = flavor == "coreclr" ? FrameworkNames.LongNames.DnxCore50 : FrameworkNames.LongNames.Dnx451;
+            var runtimeTargetFramework = new FrameworkName(runtimeTargetFrameworkString);
+            var runtimeTargetFrameworkShortName = VersionUtility.GetShortFrameworkName(runtimeTargetFramework);
+            var runtimeType = flavor == "coreclr" ? "CoreCLR" : "CLR";
+            var alternativeRuntimeType = flavor == "coreclr" ? "CLR" : "CoreCLR";
             var runtimeHomeDir = TestUtils.GetRuntimeHomeDir(flavor, os, architecture);
             var projectJsonContents = @"{
   'frameworks': {
@@ -144,8 +152,16 @@ namespace Microsoft.Framework.ApplicationHost
                     stdOut: out stdOut,
                     stdErr: out stdErr);
 
+                var expectedErrorMsg = string.Join(Environment.NewLine, new[]{
+                    $"'{projectName}' doesn't support current runtime target framework." + Environment.NewLine,
+                    $"Runtime Target Framework: '{runtimeTargetFramework} ({runtimeTargetFrameworkShortName})'",
+                    $"Runtime Type: {runtimeType}",
+                    $"Runtime Architecture: {architecture}",
+                    $"Runtime Version: {TestUtils.GetRuntimeVersion()}" + Environment.NewLine,
+                    $"Please make sure the runtime matches a framework specified in {Project.ProjectFileName}" });
+
                 Assert.NotEqual(0, exitCode);
-                Assert.Contains($"'{projectName}' doesn't support current runtime target framework '{runtimeTargetFramework}'", stdErr);
+                Assert.Contains(expectedErrorMsg, stdErr);
             }
         }
     }

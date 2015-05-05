@@ -72,20 +72,14 @@ namespace Microsoft.Framework.CommonTestUtils
 
             process.OutputDataReceived += (sender, args) =>
             {
-                if (!string.IsNullOrEmpty(args.Data))
-                {
-                    Console.WriteLine(args.Data);
-                    stdoutBuilder.AppendLine(args.Data);
-                }
+                Console.WriteLine(args.Data);
+                stdoutBuilder.AppendLine(args.Data);
             };
 
             process.ErrorDataReceived += (sender, args) =>
             {
-                if (!string.IsNullOrEmpty(args.Data))
-                {
-                    Console.WriteLine(args.Data);
-                    stderrBuilder.AppendLine(args.Data);
-                }
+                Console.WriteLine(args.Data);
+                stderrBuilder.AppendLine(args.Data);
             };
 
             process.BeginOutputReadLine();
