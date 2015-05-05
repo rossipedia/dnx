@@ -15,6 +15,7 @@ using Microsoft.Framework.Runtime.Compilation;
 using Microsoft.Framework.Runtime.FileSystem;
 using Microsoft.Framework.Runtime.Infrastructure;
 using Microsoft.Framework.Runtime.Loader;
+using NuGet;
 
 namespace Microsoft.Framework.Runtime
 {
@@ -70,13 +71,17 @@ namespace Microsoft.Framework.Runtime
                 // (i.e. project.json doesn't contain a framework that is compatible to target framework of current runtime)
                 if (unresolvedLibs.Any(l => string.Equals(l.Identity.Name, Project.Name)))
                 {
-                    exceptionMsg = string.Format(@"'{0}' doesn't support current runtime target framework '{1}'.
+                    var runtimeEnv = ServiceProvider.GetService(typeof(IRuntimeEnvironment)) as IRuntimeEnvironment;
+                    var alternativeType = VersionUtility.IsDesktop(_targetFramework) ? "CoreCLR" : "CLR";
+                    var shortName = VersionUtility.GetShortFrameworkName(_targetFramework);
+                    exceptionMsg = $@"'{Project.Name}' doesn't support current runtime target framework.
 
-Runtime Target Framework: '{2}'
-Runtime Flavor: {3}
-Runtime Architecture: {4}
+Runtime Target Framework: '{_targetFramework} ({shortName})'
+Runtime Type: {runtimeEnv.RuntimeType}
+Runtime Architecture: {runtimeEnv.RuntimeArchitecture}
+Runtime Version: {runtimeEnv.RuntimeVersion}
 
-Please run 'dnvm use {version} -r {5}' and try again");
+Please run 'dnvm use {runtimeEnv.RuntimeVersion} -r {alternativeType}' and try again";
                 }
                 else
                 {
